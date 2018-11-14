@@ -1,0 +1,327 @@
+<!--
+    Display of the Kinesis Shard Calculator
+-->
+{% raw %}
+<div ng-app="KinesisShardsCalculator">
+  <div ng-controller="ShardsCtrl">
+    <div class="Row">
+      <div class="Cell Title SuperBoldText"><h1>Stream Definition</h1></div>
+    </div>
+    <div class="Row">
+      <div class="Cell Name BoldText">&nbsp</div>
+      <div class="Cell Value">&nbsp</div>
+      <div class="Cell Description">&nbsp</div>
+      <div class="Cell Shard">Number of Shards Needed</div>
+    </div>
+    <div class="Row">
+      <div class="Cell Title SuperBoldText">Producer</div>
+    </div>
+    <div class="Row">
+      <div class="Cell Name BoldText">Average message size</div>
+      <div class="Cell Value"><input type="number" ng-model="Producer.messageSize" ng-class="{InvalidInput: Producer.messageSizeInvalid()}">
+        <span class="AttrUnit">bytes</span>
+        <span ng-show="Producer.messageSizeInvalid()" class="InvalidEntry"><br />Invalid message size: It must be between {{ Producer.messageSizeMin }} and {{ Producer.messageSizeMax }}</span></div>
+      <div class="Cell Description">The average size of the messages, measured in bytes. This is not including record aggregation,
+        but instead relates to what Kinesis calls "user records".
+      <br />It must to be at least 1 byte and at most 1MB (Kinesis limitation).</div>
+      <div class="Cell Shard">&nbsp</div>
+    </div>
+    <div class="Row">
+      <div class="Cell Name BoldText">Using Kinesis Record Aggregation</div>
+      <div class="Cell Value"><input type="checkbox" ng-model="Producer.recordAggregation"></div>
+      <div class="Cell Description">Indicates whether or not the producer is using Kinesis record aggregation. This feature which is available in the KPL
+        allows us to group user records into fewer larger aggregated records.
+        <br />Note that using Kinesis Record Aggregation increases throughput and reduces cost, at the expense of latency.</div>
+      <div class="Cell Shard">&nbsp</div>
+    </div>
+    <div class="Row">
+      <div class="Cell Name BoldText">Average throughput</div>
+      <div class="Cell Value"><input type="number" ng-model="Producer.averageInThroughput" ng-change="Producer.adjustPeakThroughput()" ng-class="{InvalidInput: Producer.averageInThroughputInvalid()}">
+        <span class="AttrUnit">records/second</span>
+        <span ng-show="Producer.averageInThroughputInvalid()" class="InvalidEntry"><br />Invalid average throughput: It must be at least 1</span></div>
+      <div class="Cell Description">The number of records per second written to the stream by the producer on average throughout the day.</div>
+      <div class="Cell Shard"></div>
+    </div>
+    <div class="Row">
+      <div class="Cell Name BoldText">Average bandwidth</div>
+      <div class="Cell Value">{{ prettifyBytes(Producer.averageInBandwidth()) }}
+        <span class="AttrUnit">/ second</span></div>
+      <div class="Cell Description">The average bandwidth produced by the producer throughout the day. This is directly correlated with the
+        average throughput and message size.</div>
+      <div class="Cell Shard"></div>
+    </div>
+    <div class="Row">
+      <div class="Cell Name BoldText">Peak throughput</div>
+      <div class="Cell Value"><input type="number" ng-model="Producer.peakInThroughput" ng-change="Producer.adjustSurgeThroughput()" ng-class="{InvalidInput: Producer.peakInThroughputInvalid()}">
+        <span class="AttrUnit">records/second</span>
+        <span ng-show="Producer.peakInThroughputInvalid()" class="InvalidEntry"><br />Invalid peak throughput: It must be at least 1 and greater than the average throughput</span></div>
+      <div class="Cell Description">The maximum number of records per second written to the stream by the producer. It is part of the regular
+      traffic, as it varies throughout the day (e.g. daily TV viewing pattern). Surge traffic is not included here and needs to be tackled independently.
+      <br />It must be higher than the average throughput.
+      <br />This impacts the shard count if not using Kinesis Record Aggregation because of the Kinesis producer limit of 1000 records per second.</div>
+      <div class="Cell Shard"><span ng-show="!Producer.recordAggregation">{{ Producer.shardsFromPeakInThroughput() }}</span></div>
+    </div>
+    <div class="Row">
+      <div class="Cell Name BoldText">Peak bandwidth</div>
+      <div class="Cell Value">{{ prettifyBytes(Producer.peakInBandwidth()) }}
+        <span class="AttrUnit">/ second</span></div>
+      <div class="Cell Description">The peak bandwidth produced by the producer. This is directly correlated with the message size and the
+        peak throughput (not counting surge).
+      <br />This impacts the shard count because of the Kinesis incoming bandwidth limit of 1MB/s.</div>
+      <div class="Cell Shard">{{ Producer.shardsFromPeakInBandwidth() }}</div>
+    </div>
+    <div class="Row">
+      <div class="Cell Name BoldText">Stream has surges</div>
+      <div class="Cell Value"><input type="checkbox" ng-model="Producer.hasSurge"></div>
+      <div class="Cell Description">Indicates whether or not the stream has traffic surges, or in other words significant throughput increases (higher
+        than the peak throughput) for a short period of time. This may be the case for instance if an event (e.g. alert or notification) notifies
+        a large number of clients, resulting in each one of them producing records to the stream.</div>
+      <div class="Cell Shard"></div>
+    </div>
+    <div class="Row" ng-show="Producer.hasSurge">
+      <div class="Cell Name BoldText">Surge throughput</div>
+      <div class="Cell Value"><input type="number" ng-model="Producer.surgeThroughput" ng-class="{InvalidInput: Producer.surgeThroughputInvalid()}">
+        <span class="AttrUnit">records/second</span>
+        <span ng-show="Producer.surgeThroughputInvalid()" class="InvalidEntry"><br />Invalid surge throughput: It must be at least 1 and greater than the peak throughput</span></div>
+      <div class="Cell Description">This is the throughput reached during a traffic surge. It needs to be larger than the peak throughput.</div>
+      <div class="Cell Shard"><span ng-show="!Producer.recordAggregation">{{ Producer.shardsFromSurgeInThroughput() }}</span></div>
+    </div>
+    <div class="Row" ng-show="Producer.hasSurge">
+      <div class="Cell Name BoldText">Surge bandwidth</div>
+      <div class="Cell Value">{{ prettifyBytes(Producer.surgeInBandwidth()) }}
+        <span class="AttrUnit">/ second</span></div>
+      <div class="Cell Description">The bandwidth produced by the producer during surges. This is directly correlated with the message size and the
+        surge throughput.
+      <br />This impacts the shard count because of the Kinesis incoming bandwidth limit of 1MB/s.</div>
+      <div class="Cell Shard">{{ Producer.shardsFromSurgeInBandwidth() }}</div>
+    </div>
+    <div class="Row" ng-show="Producer.hasSurge">
+      <div class="Cell Name BoldText">Surge duration</div>
+      <div class="Cell Value"><input type="number" ng-model="Producer.surgeDuration" ng-class="{InvalidInput: Producer.surgeDurationInvalid()}">
+        <span class="AttrUnit">seconds</span>
+        <span ng-show="Producer.surgeDurationInvalid()" class="InvalidEntry"><br />Invalid surge duration: It must be at least 1</span></div>
+      <div class="Cell Description">This is longest expected duration of a traffic surge.</div>
+      <div class="Cell Shard"></div>
+    </div>
+    <div class="Row">
+      <div class="Cell Title SuperBoldText"><span >consumers</span>
+        <button ng-click="addConsumer(nbConsumers())"> + Add consumer</button></div>
+    </div>
+    <div class="Row">
+      <div class="Cell Name BoldText">Number of consumers</div>
+      <div class="Cell Value">{{ nbConsumers() }}</div>
+      <div class="Cell Description">This is the total number of consumers, including enhanced fan-out consumers. You can add additional consumers by clicking the button above.
+        <br />This impacts the shard count because the outgoing bandwidth limit of 2MB/s/shard is sharded amongst the "standard" consumers (i.e. non-fan-out consumers).</div>
+      <div class="Cell Shard">{{ shardsFromNbConsumers() }}</div>
+    </div>
+    <div ng-repeat="(id, c) in consumers">
+      <div class="Row">
+        <div class="Cell ConsumerTitle BoldText"><span style="padding-right: 20px;">Consumer {{ id }}</span>
+          <button ng-click="removeConsumer(id)"> - Remove consumer {{ id }}</button></div>
+        <div class="Cell ConsumerValue">&nbsp</div>
+        <div class="Cell Description">&nbsp</div>
+        <div class="Cell Shard">&nbsp</div>
+      </div>
+      <div class="Row">
+        <div class="Cell Consumer BoldText">Enhanced Fan-Out Consumer</div>
+        <div class="Cell Value"><input type="checkbox" ng-model="c.enhancedFanOut"></div>
+        <div class="Cell Description">Indicates whether or not the consumer is using the <a href="https://docs.aws.amazon.com/streams/latest/dev/introduction-to-enhanced-consumers.html">Kinesis Enhanced Fan-out</a>
+        feature. It essentially isolates this consumer from the other consumers, so that the fan-out consumers each have a dedicated 2MB/s/shard bandwidth.</div>
+        <div class="Cell Shard">&nbsp</div>
+      </div>
+      <div class="Row">
+        <div class="Cell Consumer BoldText">Maximum consumption speed</div>
+        <div class="Cell Value"><input type="number" ng-model="c.maxConsumptionSpeed" ng-class="{InvalidInput: c.maxConsumptionSpeedInvalid()}">
+          <span class="AttrUnit">records/second</span>
+          <span ng-show="c.maxConsumptionSpeedInvalid()" class="InvalidEntry"><br />Invalid consumption speed: It must be at least 1</span></div>
+        <div class="Cell Description">This is the maximum number of records that a single consumer instance (i.e. process) can handle. This
+          assumes that a single shard is consumed by exactly one consumer process.
+        <br />It impacts the shard count because it can limit the actual throughput on a shard.</div>
+        <div class="Cell Shard">{{ c.shardsFromMaxOutThroughput() }}</div>
+      </div>
+      <div class="Row" ng-show="Producer.hasSurge">
+        <div class="Cell Consumer BoldText">Maximum acceptable latency</div>
+        <div class="Cell Value"><input type="number" ng-model="c.maxAcceptableLatency" ng-class="{InvalidInput: c.maxAcceptableLatencyInvalid()}">
+          <span class="AttrUnit">seconds</span>
+          <span ng-show="c.maxAcceptableLatencyInvalid()" class="InvalidEntry"><br />Invalid maximum acceptable latency: It must be at least 1</span></div>
+        <div class="Cell Description">This is the maximum duration that is acceptable for a consumer to recover from a surge.
+          <br />It impacts the shard count, if either the consumption speed of the consumer is particularly low, or if the average message size and
+          the overall number of consumers (with which this consumer needs to share the bandwitdh) are high.
+        </div>
+        <div class="Cell Shard">{{ c.shardsFromMaxAcceptableLatency() }}</div>
+      </div>
+    </div>
+
+    <div class="Row">
+      <div class="Cell Title SuperBoldText"><h1>Stream Analysis</h1></div>
+    </div>
+    <div class="Row">
+      <div class="Cell Name BoldText" style="font-weight: bold; font-size: 1.2em; text-transform: capitalize;">Number of Shards Needed</div>
+      <div class="Cell Value">&nbsp</div>
+      <div class="Cell Description">This is the total number of shards needed for Kinesis data stream based on the information provided.
+        <p ng-show="totalShards() > 200 && totalShards() <= 500" class="WarningOutput BoldText">Warning: This exceeds the maximum number of shards per stream in some AWS regions. You may need to request this soft limit to be increased.</p>
+        <p ng-show="totalShards() > 500" class="InvalidEntry BoldText">Warning: This exceeds the maximum number of shards per stream in all AWS regions. You will need to request this soft limit to be increased.</p>
+      </div>
+      <div class="Cell Shard" ng-class="{WarningOutput: totalShards() > 200 && totalShards() <= 500, InvalidEntry: totalShards() > 500}" style="font-weight: bold; font-size: 1.2em;">{{ totalShards() }}</div>
+    </div>
+    <div class="Row">
+      <div class="Cell Name BoldText">Bottleneck Factors</div>
+      <div class="Cell Value">&nbsp</div>
+      <div class="Cell Description">The factors that drive the number of shards are:
+        <ul>
+          <li ng-show="totalShards() == Producer.shardsFromPeakInBandwidth()">The producer peak bandwidth</li>
+          <li ng-show="!Producer.recordAggregation && totalShards() == Producer.shardsFromPeakInThroughput()">The producer peak throughput</li>
+          <li ng-show="Producer.hasSurge && totalShards() == Producer.shardsFromSurgeInBandwidth()">The producer surge bandwidth</li>
+          <li ng-show="Producer.hasSurge && !Producer.recordAggregation && totalShards() == Producer.shardsFromSurgeInThroughput()">The producer surge throughput</li>
+          <li ng-show="totalShards() == shardsFromNbConsumers()">The number of consumers</li>
+          <li ng-repeat="(id, c) in consumers" ng-show="totalShards() == c.shardsFromMaxOutThroughput()">Consumer {{ id }} consumption speed</li>
+          <li ng-repeat="(id, c) in consumers" ng-show="Producer.hasSurge && totalShards() == c.shardsFromMaxAcceptableLatency()">Consumer {{ id }} acceptable latency</li>
+        </ul>
+      </div>
+      <div class="Cell Shard" >&nbsp</div>
+    </div>
+    <div class="Row">
+      <div class="Cell Name BoldText">Average incoming bandwidth utilization</div>
+      <div class="Cell Value">&nbsp</div>
+      <div class="Cell Description">This provides the percentage of the available incoming bandwitdh acutally used under "normal" conditions.</div>
+      <div class="Cell Shard">{{ prettify(100 * Producer.averageInBandwidth() / (totalShards() * Producer.awsMaxIncomingBw)) }}%</div>
+    </div>
+    <div class="Row">
+      <div class="Cell Name BoldText">Average outgoing bandwidth utilization</div>
+      <div class="Cell Value">&nbsp</div>
+      <div class="Cell Description">This provides the percentage of the available outgoing bandwitdh acutally used under "normal" conditions.</div>
+      <div class="Cell Shard">{{ prettify(100 * nbStandardConsumers() * Producer.averageInBandwidth() / (totalShards() * Producer.awsMaxOutgoingBw)) }}%</div>
+    </div>
+    <div class="Row">
+      <div class="Cell Name BoldText">Record Aggregation</div>
+      <div class="Cell Value">&nbsp</div>
+      <div class="Cell Description" ng-show="!Producer.recordAggregation && totalShardsWithAggregation() < totalShardsWithoutAggregation()">
+        Using Kinesis record aggregation would lower the required number of shards from {{ totalShardsWithoutAggregation() }} down to {{ totalShardsWithAggregation() }}.
+        <br />This would significantly reduce the cost of your Kinesis data stream.
+      </div>
+      <div class="Cell Description" ng-show="!Producer.recordAggregation && totalShardsWithAggregation() >= totalShardsWithoutAggregation()">
+        Using Kinesis record aggregation would not lower the required number of shards, but it would reduce the cost of your Kinesis data stream.
+      </div>
+      <div class="Cell Shard" ng-show="!Producer.recordAggregation && totalShardsWithAggregation() < totalShardsWithoutAggregation()">Highly Recommended</div>
+      <div class="Cell Shard" ng-show="!Producer.recordAggregation && totalShardsWithAggregation() >= totalShardsWithoutAggregation()">Recommended</div>
+    </div>
+
+    <div class="Row">
+      <div class="Cell Title SuperBoldText"><h1>Cost Analysis</h1></div>
+    </div>
+    <div class="Row">
+      <p><b>Important<sup>*</sup>:</b> The costs provided in this section are estimations, and may differ from the actual amount charged by AWS.
+        In order to compute these approximated prices, we take a number of assumptions that may or may be valid based on your specific context.</p>
+    </div>
+    <div class="Row">
+      <div class="Cell Name BoldText">Retention Period</div>
+      <div class="Cell Value">
+        <input type="number" ng-model="retentionPeriod" ng-class="{InvalidInput: retentionInvalid()}">
+        <span class="AttrUnit">hours</span>
+        <span ng-show="retentionInvalid()" class="InvalidEntry"><br />Invalid retention period: It must be between {{ retentionPeriodMin }} and {{ retentionPeriodMax }}</span>
+      </div>
+      <div class="Cell Description">The cost of a Kinesis stream depends on the Kinesis stream data retention. By default, it is set to 24 hours, but you can increase it up to 7 days.</div>
+      <div class="Cell Shard">&nbsp</div>
+    </div>
+    <div class="Row">
+      <div class="Cell Name BoldText">Shard Hour Price</div>
+      <div class="Cell Value">
+        <input type="number" ng-model="AWSPricing.shardHour" ng-class="{InvalidInput: AWSPricing.shardHourInvalid()}">
+        <span class="AttrUnit">$/hour/shard</span>
+        <span ng-show="AWSPricing.shardHourInvalid()" class="InvalidEntry"><br />Invalid Shard Hour Price: It must be between {{ AWSPricing.shardHourMin }} and {{ AWSPricing.shardHourMax }}</span>      </div>
+      <div class="Cell Description">See the current <a href="https://aws.amazon.com/kinesis/data-streams/pricing/">AWS list price</a> for Kinesis. It depends on the AWS region in which the Kinesis stream is defined.</div>
+      <div class="Cell Shard">&nbsp</div>
+    </div>
+    <div class="Row">
+      <div class="Cell Name BoldText">PUT Payload Price</div>
+      <div class="Cell Value">
+        <input type="number" ng-model="AWSPricing.putUnits" ng-class="{InvalidInput: AWSPricing.putUnitsInvalid()}">
+        <span class="AttrUnit">$/1,000,000 PUT Units</span>
+        <span ng-show="AWSPricing.putUnitsInvalid()" class="InvalidEntry"><br />Invalid PUT Payload Price: It must be between {{ AWSPricing.putUnitsMin }} and {{ AWSPricing.putUnitsMax }}</span>
+      </div>
+      <div class="Cell Description">See the current <a href="https://aws.amazon.com/kinesis/data-streams/pricing/">AWS list price</a> for Kinesis. It depends on the AWS region in which the Kinesis stream is defined.</div>
+      <div class="Cell Shard">&nbsp</div>
+    </div>
+    <div class="Row">
+      <div class="Cell Name BoldText">Extended Data Retention Price</div>
+      <div class="Cell Value">
+        <input type="number" ng-model="AWSPricing.shardExHour" ng-class="{InvalidInput: AWSPricing.shardExHourInvalid()}">
+        <span class="AttrUnit">$/hour/shard</span>
+        <span ng-show="AWSPricing.shardExHourInvalid()" class="InvalidEntry"><br />Invalid Extended Data Retention Price: It must be between {{ AWSPricing.shardExHourMin }} and {{ AWSPricing.shardExHourMax }}</span></td>
+      </div>
+      <div class="Cell Description">See the current <a href="https://aws.amazon.com/kinesis/data-streams/pricing/">AWS list price</a> for Kinesis. It depends on the AWS region in which the Kinesis stream is defined.</div>
+      <div class="Cell Shard">&nbsp</div>
+    </div>
+    <div class="Row">
+      <div class="Cell Name BoldText">Enhanced Fan-Out Shard Hours Price</div>
+      <div class="Cell Value">
+        <input type="number" ng-model="AWSPricing.fanoutShard" ng-class="{InvalidInput: AWSPricing.fanoutShardInvalid()}">
+        <span class="AttrUnit">$/hour/shard</span>
+        <span ng-show="AWSPricing.fanoutShardInvalid()" class="InvalidEntry"><br />Invalid Enhanced Fan-Out Shard Hours Price: It must be between {{ AWSPricing.fanoutShardMin }} and {{ AWSPricing.fanoutShardMax }}</span></td>
+      </div>
+      <div class="Cell Description">See the current <a href="https://aws.amazon.com/kinesis/data-streams/pricing/">AWS list price</a> for Kinesis. It depends on the AWS region in which the Kinesis stream is defined.</div>
+      <div class="Cell Shard">&nbsp</div>
+    </div>
+    <div class="Row">
+      <div class="Cell Name BoldText">Enhanced Fan-Out Data Retrievals Price</div>
+      <div class="Cell Value">
+        <input type="number" ng-model="AWSPricing.fanoutData" ng-class="{InvalidInput: AWSPricing.fanoutDataInvalid()}">
+        <span class="AttrUnit">$/GB</span>
+        <span ng-show="AWSPricing.fanoutDataInvalid()" class="InvalidEntry"><br />Invalid Enhanced Fan-Out Data Retrievals Price: It must be between {{ AWSPricing.fanoutDataMin }} and {{ AWSPricing.fanoutDataMax }}</span></td>
+      </div>
+      <div class="Cell Description">See the current <a href="https://aws.amazon.com/kinesis/data-streams/pricing/">AWS list price</a> for Kinesis. It depends on the AWS region in which the Kinesis stream is defined.</div>
+      <div class="Cell Shard">&nbsp</div>
+    </div>
+    <div class="Row">
+      <div class="Cell Name BoldText">AWS Discount</div>
+      <div class="Cell Value">
+        <input type="number" ng-model="AWSPricing.discount" ng-class="{InvalidInput: AWSPricing.discountInvalid()}">
+        <span class="AttrUnit">%</span>
+        <span ng-show="AWSPricing.discountInvalid()" class="InvalidEntry"><br />Invalid AWS discount: It must be between {{ AWSPricing.discountMin }} and {{ AWSPricing.discountMax }}</span></td>
+      </div>
+      <div class="Cell Description">The discount you might have negotiated with AWS.</div>
+      <div class="Cell Shard">&nbsp</div>
+    </div>
+    <div class="Row">
+      <div class="Cell Name BoldText">Kinesis data stream cost</div>
+      <div class="Cell Value">&nbsp</div>
+      <div class="Cell Description">This is approximately<sup>*</sup> the total cost of the Kinesis data stream, which breaks down into:
+        <ul>
+          <li>Shard hour cost: ${{ prettify( shardPrice() ) }} per day</li>
+          <li>PUT payload cost (approximately<sup>*</sup>): ${{ prettify( putPrice() ) }} per day</li>
+        </ul>
+      </div>
+      <div class="Cell Shard"><span class="SuperBoldText">${{ prettify( shardPrice() + putPrice() )}} per day</span></div>
+    </div>
+    <div class="Row">
+      <div class="Cell Name BoldText">Record Aggregation Saving</div>
+      <div class="Cell Value">&nbsp</div>
+      <div class="Cell Description">Using Kinesis record aggregation {{Producer.recordAggregation ? "provides" : "would provide"}} an approximative saving of ${{ prettify(aggregationSavings()) }} per day
+      ({{prettify(100*aggregationSavings()/(shardPriceWithoutAggregation() + putPriceWithoutAggregation()))}}%).
+      </div>
+      <div class="Cell Shard" ng-show="!Producer.recordAggregation"><span class="SuperBoldText WarningOutput">You could save ${{ prettify(aggregationSavings()) }} per day</span></div>
+      <div class="Cell Shard" ng-show="Producer.recordAggregation">${{ prettify(aggregationSavings()) }} per day</div>
+    </div>
+    <div class="Row">
+      <div class="Cell Name BoldText">Kinesis enhanced fan-out consumer cost</div>
+      <div class="Cell Value">&nbsp</div>
+      <div class="Cell Description">Each consumer that uses the Kinesis Enhanced Fan-out has an additional cost, which breaks down into:
+        <ul>
+          <li>Enhanced fan-out shard hours cost: ${{ prettify( fanoutShardPrice() ) }} per day</li>
+          <li>Enhanced fan-out data retrievals cost (approximately<sup>*</sup>): ${{ prettify( fanoutDataPrice() ) }} per day</li>
+        </ul>
+      </div>
+      <div class="Cell Shard">${{ prettify( fanoutPrice() ) }} per day (each)</div>
+    </div>
+
+    <p><sup>*</sup> The prices provided here are approximation. It depends on the exact production/consumption pattern.
+      In order to provide an estimated cost, we take the following assumptions:</p>
+    <ul>
+      <li>A day is made of 24 hours, each of which is made of 3600 seconds.</li>
+      <li>Daily prices are for a full day of usage. In other words, the price is not relevant for the days when you use the data stream partially.</li>
+      <li>The data production throughput can vary but it is continuous (i.e. no interruption).</li>
+      <li>The data consumers each consume the whole data stream once and only once. In other words, they don't "replay" past data or skip portion of the stream.</li>
+    </ul>
+  </div>
+</div>
+{% endraw %}

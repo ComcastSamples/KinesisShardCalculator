@@ -1,0 +1,73 @@
+---
+---
+
+@import "{{ site.theme }}";
+
+.topTitle {
+  white-space: nowrap;
+}
+.Row {
+  display: flex;
+  width: 100%;
+  border-bottom: 1px solid black;
+}
+.Cell {
+  float: left;
+  display: inline-block;
+  padding: 5px;
+}
+.BoldText {
+  font-weight: bold;
+}
+.SuperBoldText {
+  font-weight: bold;
+  font-size: 1.2em;
+}
+.Title {
+  margin-top: 1em;
+  margin-bottom: 1em;
+  text-transform: capitalize;
+  font-size: 1.17em;
+  font-weight: bold;
+}
+.Name {
+  width: 20%;
+  text-transform: capitalize;
+}
+.ConsumerTitle {
+  width: 38%;
+  text-transform: capitalize;
+}
+.ConsumerValue {
+  width: 2%;
+}
+.Consumer {
+  margin-left: 5%;
+  width: 15%;
+  text-transform: capitalize;
+}
+.Value {
+  width: 20%;
+}
+.AttrUnit {
+  font-style: italic;
+  white-space: nowrap;
+}
+.Description {
+  width: 50%;
+  border-right: 1px solid black;
+}
+.Shard {
+  width: 8%;
+  text-align: center;
+}
+.InvalidEntry {
+  color: red;
+  font-weight: bold;
+}
+.InvalidInput {
+  border: 2px solid red;
+}
+.WarningOutput {
+  color: orange;
+}
