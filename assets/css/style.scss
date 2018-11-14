@@ -3,10 +3,37 @@
 
 @import "{{ site.theme }}";
 
-.topTitle {
-  margin-left: 1em;
-  white-space: nowrap;
+// Adjusting site theme
+aside#sidebar {
+  min-height: 0px;
 }
+
+.topTitle {
+  white-space: nowrap;
+  font-size: 48px;
+  padding-top: 15px;
+  margin-bottom: 0;
+}
+
+#KinesisShardCalculator h1 {
+  margin-top: 0;
+  margin-bottom: 0;
+  margin-left: 50px;
+  font-family: 'Architects Daughter', 'Helvetica Neue', Helvetica, Arial, serif;
+  font-size: 1.8em;
+  font-weight: normal;
+  color: #474747;
+  text-indent: 6px;
+  letter-spacing: -1px;
+}
+
+#KinesisShardCalculator h1:before {
+  padding-right: 0.3em;
+  margin-left: -0.9em;
+  color: #9ddcff;
+  content: "/";
+}
+
 .Row {
   display: flex;
   width: 100%;

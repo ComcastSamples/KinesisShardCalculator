@@ -2,7 +2,7 @@
     Display of the Kinesis Shard Calculator
 -->
 {% raw %}
-<div ng-app="KinesisShardsCalculator">
+<div ng-app="KinesisShardsCalculator" id="KinesisShardCalculator">
   <div ng-controller="ShardsCtrl">
     <div class="Row">
       <div class="Cell Title SuperBoldText"><h1>Stream Definition</h1></div>
@@ -104,7 +104,7 @@
       <div class="Cell Shard"></div>
     </div>
     <div class="Row">
-      <div class="Cell Title SuperBoldText"><span >consumers</span>
+      <div class="Cell Title SuperBoldText"><span style="padding-right: 20px">consumers</span>
         <button ng-click="addConsumer(nbConsumers())"> + Add consumer</button></div>
     </div>
     <div class="Row">
@@ -210,8 +210,10 @@
       <div class="Cell Title SuperBoldText"><h1>Cost Analysis</h1></div>
     </div>
     <div class="Row">
-      <p><b>Important<sup>*</sup>:</b> The costs provided in this section are estimations, and may differ from the actual amount charged by AWS.
+      <div class="Cell">
+        <p><b>Important<sup>*</sup>:</b> The costs provided in this section are estimations, and may differ from the actual amount charged by AWS.
         In order to compute these approximated prices, we take a number of assumptions that may or may be valid based on your specific context.</p>
+      </div>
     </div>
     <div class="Row">
       <div class="Cell Name BoldText">Retention Period</div>
@@ -313,15 +315,16 @@
       </div>
       <div class="Cell Shard">${{ prettify( fanoutPrice() ) }} per day (each)</div>
     </div>
-
-    <p><sup>*</sup> The prices provided here are approximation. It depends on the exact production/consumption pattern.
-      In order to provide an estimated cost, we take the following assumptions:</p>
-    <ul>
-      <li>A day is made of 24 hours, each of which is made of 3600 seconds.</li>
-      <li>Daily prices are for a full day of usage. In other words, the price is not relevant for the days when you use the data stream partially.</li>
-      <li>The data production throughput can vary but it is continuous (i.e. no interruption).</li>
-      <li>The data consumers each consume the whole data stream once and only once. In other words, they don't "replay" past data or skip portion of the stream.</li>
-    </ul>
+    <div class="Cell">
+      <p><sup>*</sup> The prices provided here are approximation. It depends on the exact production/consumption pattern.
+        In order to provide an estimated cost, we take the following assumptions:</p>
+      <ul>
+        <li>A day is made of 24 hours, each of which is made of 3600 seconds.</li>
+        <li>Daily prices are for a full day of usage. In other words, the price is not relevant for the days when you use the data stream partially.</li>
+        <li>The data production throughput can vary but it is continuous (i.e. no interruption).</li>
+        <li>The data consumers each consume the whole data stream once and only once. In other words, they don't "replay" past data or skip portion of the stream.</li>
+      </ul>
+    </div>
   </div>
 </div>
 {% endraw %}
